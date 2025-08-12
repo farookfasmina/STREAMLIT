@@ -94,3 +94,18 @@ else:
     st.header("About")
     st.write("Project: Machine Learning Model Deployment with Streamlit")
     st.write("Author: Your name")
+
+import os
+import joblib
+import requests
+
+MODEL_URL = "https://raw.githubusercontent.com/yourusername/your-repo-name/main/model.pkl"
+MODEL_PATH = "model.pkl"
+
+if not os.path.exists(MODEL_PATH):
+    with st.spinner("Downloading model..."):
+        r = requests.get(MODEL_URL)
+        with open(MODEL_PATH, "wb") as f:
+            f.write(r.content)
+
+model = joblib.load(MODEL_PATH)
