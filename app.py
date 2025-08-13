@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+import os
+import requests
 
 st.set_page_config(page_title="Titanic Classifier", layout="wide")
 
@@ -102,16 +104,28 @@ elif page == "Predict":
 
 # ---------------------------
 # MODEL PERFORMANCE
-# ---------------------------
+
 elif page == "Model Performance":
     st.header("Model Performance (Test Set)")
-    try:
-        test_df = pd.read_csv("data/test.csv")
-        features = ['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked']
-        X_test = test_df[features]
-        y_test = test_df['Survived']
+    features = ['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked']
+    test_path = "data/test.csv"
+    test_df = None
 
-        if model:
+    # Try loading from disk
+    if os.path.exists(test_path):
+        test_df = pd.read_csv(test_path)
+    else:
+        st.warning("Test dataset not found. Please upload 'data/test.csv'.")
+        uploaded_file = st.file_uploader("Upload test.csv", type="csv")
+        if uploaded_file is not None:
+            test_df = pd.read_csv(uploaded_file)
+    
+    if test_df is not None:
+        if 'Survived' not in test_df.columns:
+            st.error("Uploaded test set must contain a 'Survived' column.")
+        elif model:
+            X_test = test_df[features]
+            y_test = test_df['Survived']
             y_pred = model.predict(X_test)
             acc = accuracy_score(y_test, y_pred)
             st.write(f"Accuracy: {acc:.2f}")
@@ -126,8 +140,6 @@ elif page == "Model Performance":
             st.text(classification_report(y_test, y_pred))
         else:
             st.error("Model not loaded.")
-    except FileNotFoundError:
-        st.warning("Test dataset not found. Please upload 'data/test.csv'.")
 
 # ---------------------------
 # ABOUT
