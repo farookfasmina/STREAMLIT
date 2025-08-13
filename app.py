@@ -2,21 +2,24 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-import plotly.express as px
 import matplotlib.pyplot as plt
 import seaborn as sns
+import plotly.express as px
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
 st.set_page_config(page_title="Titanic Classifier", layout="wide")
 
+# Cache dataset
 @st.cache_data
 def load_data(path="data/train.csv"):
     return pd.read_csv(path)
 
+# Cache model
 @st.cache_resource
 def load_model(path="model.pkl"):
     return joblib.load(path)
 
+# Load
 df = load_data()
 model = None
 try:
@@ -24,49 +27,61 @@ try:
 except Exception as e:
     st.error("Model failed to load: " + str(e))
 
-# Sidebar navigation
+# Sidebar Navigation
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Overview", "Visualisations", "Predict", "Model Performance", "About"])
+page = st.sidebar.radio(
+    "Go to", 
+    ["Overview", "Visualisations", "Predict", "Model Performance", "About"]
+)
 
+# ---------------------------
+# OVERVIEW
+# ---------------------------
 if page == "Overview":
-    st.header("Dataset overview")
+    st.header("Dataset Overview")
     st.write("Shape:", df.shape)
     st.dataframe(df.head())
-    st.markdown("### Column info")
+    st.markdown("### Column Info")
     st.write(df.dtypes)
 
-    # interactive filter example
     col = st.selectbox("Filter by column", df.columns)
     if df[col].dtype == 'object':
         val = st.selectbox("Value", df[col].dropna().unique())
         st.dataframe(df[df[col] == val].head())
 
+# ---------------------------
+# VISUALISATIONS
+# ---------------------------
 elif page == "Visualisations":
     st.header("Visualisations")
-    st.subheader("Survival count")
-    fig = px.histogram(df, x='Survived', title="Survived distribution")
+    
+    st.subheader("Survival Count")
+    fig = px.histogram(df, x='Survived', title="Survived Distribution")
     st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("Age vs Fare (colored by Survived)")
+    st.subheader("Age vs Fare (Colored by Survival)")
     fig2 = px.scatter(df, x='Age', y='Fare', color='Survived', hover_data=['Name'])
     st.plotly_chart(fig2, use_container_width=True)
 
-    st.subheader("Correlation heatmap")
+    st.subheader("Correlation Heatmap")
     corr = df.select_dtypes(include=np.number).corr()
     fig3, ax = plt.subplots()
-    sns.heatmap(corr, annot=True, ax=ax)
+    sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax)
     st.pyplot(fig3)
 
+# ---------------------------
+# PREDICT
+# ---------------------------
 elif page == "Predict":
-    st.header("Make a prediction")
-    # example inputs (match training features)
-    pclass = st.selectbox("Pclass", [1,2,3])
-    sex = st.selectbox("Sex", ["male","female"])
+    st.header("Make a Prediction")
+    
+    pclass = st.selectbox("Pclass", [1,2,3], help="Passenger Class")
+    sex = st.selectbox("Sex", ["male","female"], help="Passenger Gender")
     age = st.number_input("Age", min_value=0.0, max_value=100.0, value=30.0)
-    sibsp = st.number_input("SibSp", min_value=0, max_value=10, value=0)
-    parch = st.number_input("Parch", min_value=0, max_value=10, value=0)
+    sibsp = st.number_input("SibSp", min_value=0, max_value=10, value=0, help="Siblings/Spouses aboard")
+    parch = st.number_input("Parch", min_value=0, max_value=10, value=0, help="Parents/Children aboard")
     fare = st.number_input("Fare", min_value=0.0, max_value=1000.0, value=32.0)
-    embarked = st.selectbox("Embarked", ["S","C","Q"])
+    embarked = st.selectbox("Embarked", ["S","C","Q"], help="Port of Embarkation")
 
     if st.button("Predict"):
         if model is None:
@@ -76,24 +91,52 @@ elif page == "Predict":
                 'Pclass': pclass, 'Sex': sex, 'Age': age,
                 'SibSp': sibsp, 'Parch': parch, 'Fare': fare, 'Embarked': embarked
             }])
-            try:
-                prob = model.predict_proba(X_new)[0]
-                pred = model.predict(X_new)[0]
-                st.write("Predicted class:", int(pred))
-                st.write("Probabilities:", prob)
-            except Exception as e:
-                st.error("Prediction error: " + str(e))
+            with st.spinner("Predicting..."):
+                try:
+                    prob = model.predict_proba(X_new)[0]
+                    pred = model.predict(X_new)[0]
+                    st.write("Predicted Class:", int(pred))
+                    st.write("Probabilities:", prob)
+                except Exception as e:
+                    st.error("Prediction error: " + str(e))
 
+# ---------------------------
+# MODEL PERFORMANCE
+# ---------------------------
 elif page == "Model Performance":
-    st.header("Model performance (test set)")
-    st.markdown("Load your evaluation metrics from notebook or recompute here.")
-    # Optionally, load saved metrics or recompute from a test CSV
-    st.info("Show confusion matrix, accuracy, classification report here.")
+    st.header("Model Performance (Test Set)")
+    try:
+        test_df = pd.read_csv("data/test.csv")
+        features = ['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked']
+        X_test = test_df[features]
+        y_test = test_df['Survived']
 
+        if model:
+            y_pred = model.predict(X_test)
+            acc = accuracy_score(y_test, y_pred)
+            st.write(f"Accuracy: {acc:.2f}")
+
+            cm = confusion_matrix(y_test, y_pred)
+            fig, ax = plt.subplots()
+            sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
+            ax.set_xlabel("Predicted")
+            ax.set_ylabel("Actual")
+            st.pyplot(fig)
+
+            st.text(classification_report(y_test, y_pred))
+        else:
+            st.error("Model not loaded.")
+    except FileNotFoundError:
+        st.warning("Test dataset not found. Please upload 'data/test.csv'.")
+
+# ---------------------------
+# ABOUT
+# ---------------------------
 else:
     st.header("About")
     st.write("Project: Machine Learning Model Deployment with Streamlit")
-    st.write("Author: FASMINA")
+    st.write("Author: Your Name")
+
 
 import os
 import joblib
