@@ -135,7 +135,7 @@ elif page == "Model Performance":
 else:
     st.header("About")
     st.write("Project: Machine Learning Model Deployment with Streamlit")
-    st.write("Author: Your Name")
+    st.write("Author: Fasmina")
 
 
 import os
